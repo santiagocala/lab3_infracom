@@ -2,6 +2,9 @@ import socket
 from threading import Thread
 from socketserver import ThreadingMixIn
 
+#numero_clientes 
+#archivo_seleccionado
+
 TCP_IP = 'localhost'
 TCP_PORT = 9001
 BUFFER_SIZE = 1024
