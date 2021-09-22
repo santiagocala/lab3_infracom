@@ -2,12 +2,15 @@ import socket
 from threading import Thread
 from socketserver import ThreadingMixIn
 
-#numero_clientes 
-#archivo_seleccionado
+client_capacity = 4
+path = ""
+active_connections = 0
 
 TCP_IP = 'localhost'
 TCP_PORT = 9001
 BUFFER_SIZE = 1024
+
+hashsito = None
 
 class ClientThread(Thread):
 
@@ -19,7 +22,7 @@ class ClientThread(Thread):
         print(" New thread started for "+ip+":"+str(port))
 
     def run(self):
-        filename='mytext.txt'
+        filename='archivo100.txt'
         f = open(filename,'rb')
         while True:
             l = f.read(BUFFER_SIZE)
@@ -28,9 +31,11 @@ class ClientThread(Thread):
                 #print('Sent ',repr(l))
                 l = f.read(BUFFER_SIZE)
             if not l:
+                hashsito = str(hash(f))
                 f.close()
                 self.sock.close()
                 break
+        print(hashsito)
 
 tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 tcpsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -43,8 +48,14 @@ while True:
     (conn, (ip,port)) = tcpsock.accept()
     print('Got connection from ', (ip,port))
     newthread = ClientThread(ip,port,conn)
-    newthread.start()
     threads.append(newthread)
+    print("Se agregó un nuevo thread: Nueva longitud: " + str(len(threads)))
+    if len(threads) == client_capacity:
+        for thread in threads:
+            thread.start()
+            thread.join()
+        threads.clear()
+        print("Nueva longitud: " + str(len(threads)))
 
 for t in threads:
     t.join()
