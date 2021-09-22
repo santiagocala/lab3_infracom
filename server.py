@@ -50,6 +50,3 @@ for c in range(CLIENTS):
 
 for c in clients:
     c.start()
-
-for c in clients:
-    c.join()

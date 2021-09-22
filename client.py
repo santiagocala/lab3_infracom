@@ -33,6 +33,3 @@ for c in range(CLIENTS):
     client = SocketThread()
     client.start()
     clients.append(client)
-
-for c in clients:
-    c.join()
