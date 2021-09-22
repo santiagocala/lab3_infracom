@@ -1,87 +1,56 @@
 import socket
-from threading import Thread
-from socketserver import ThreadingMixIn
 import hashlib
 import os
+import math
+from threading import Thread
 
-client_capacity = 1
-path = ""
-contador = 0
-
-TCP_IP = 'localhost'
-TCP_PORT = 9001
+SERVER_IP = "localhost"
+SERVER_PORT = 8080
 BUFFER_SIZE = 1024
 
-hashsito = None
+CLIENTS = 10
+FILE = "file"
+FILE_SIZE = int(math.ceil(os.path.getsize(FILE)/BUFFER_SIZE))
 
-class ClientThread(Thread):
+class SocketThread(Thread):
 
-    def __init__(self,ip,port,sock,num_cliente):
+    def __init__(self, ip, port, socket, number):
         Thread.__init__(self)
         self.ip = ip
         self.port = port
-        self.sock = sock
-        self.num_cliente = num_cliente
-        print(" New thread started for "+ip+":"+str(port))
+        self.socket = socket
+        self.number = number
+        print("Cliente", number, "-", ip, port)
 
     def run(self):
-        contador = 1
-        self.sock.send(str(self.num_cliente).encode())
-        filename='archivo100.txt'
-        f = open(filename,'rb')
-        self.sock.send(str(os.path.getsize(filename)).encode())
-        self.sock.send(str(hash_final).encode())
-        while True:
-            l = f.read(BUFFER_SIZE)
-            while (l):
-                self.sock.send(l)
-                #print('Sent ',repr(l))
-                l = f.read(BUFFER_SIZE)
-                contador += 1
-            if not l:
-                f.close()
-                # resultado = hashsito.hexdigest()
-                # print(resultado)
-                #self.sock.send(hashsito.hexdigest())
-                #print(hashsito.hexdigest())
-                self.sock.close()
-                print(contador)
-                break
-                
-tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-tcpsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-tcpsock.bind((TCP_IP, TCP_PORT))
-threads = []
+        self.socket.send(self.number.to_bytes(1, "big"))
+        self.socket.send(FILE_SIZE.to_bytes(4, "big"))
+        self.socket.send(hash.encode())
+        with open(FILE, "rb") as f:
+            for b in range(FILE_SIZE):
+                self.socket.send(f.read(BUFFER_SIZE))
+        self.socket.close()
 
-archivo = 'archivo100.txt'
-with open(archivo,'rb') as f:
-    hashsito = hashlib.sha256()
-    while True:
-        l = f.read(BUFFER_SIZE)
-        while (l):
-            hashsito.update(l)
-            #print('Sent ',repr(l))
-            l = f.read(BUFFER_SIZE)
-            if not l:
-                f.close()
-                break
-    hash_final = hashsito.hexdigest()
+tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+tcp.bind((SERVER_IP, SERVER_PORT))
+clients = []
 
-while True:
-    tcpsock.listen(5)
-    print("Waiting for incoming connections...")
-    (conn, (ip,port)) = tcpsock.accept()
-    print('Got connection from ', (ip,port))
-    newthread = ClientThread(ip,port,conn,contador)
-    contador += 1
-    threads.append(newthread)
-    print("Se agregó un nuevo thread: Nueva longitud: " + str(len(threads)))
-    if len(threads) == client_capacity:
-        for thread in threads:
-            thread.start()
-            thread.join()
-        threads.clear()
-        print("Nueva longitud: " + str(len(threads)))
+with open(FILE, "rb") as f:
+    hashBuffer = hashlib.sha256()
+    for b in range(FILE_SIZE):
+        hashBuffer.update(f.read(BUFFER_SIZE))
+hash = hashBuffer.hexdigest()
+print("Hash:", hash)
 
-for t in threads:
-    t.join()
+for c in range(CLIENTS):
+    tcp.listen(0)
+    (clientSocket, (clientIp, clientPort)) = tcp.accept()
+    client = SocketThread(clientIp, clientPort, clientSocket, c + 1)
+    clients.append(client)
+
+for c in clients:
+    c.start()
+
+for c in clients:
+    c.join()

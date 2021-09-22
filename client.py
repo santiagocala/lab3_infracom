@@ -1,43 +1,38 @@
 import socket
 import hashlib
 import math
+from threading import Thread
 
-TCP_IP = 'localhost'
-TCP_PORT = 9001
+SERVER_IP = "localhost"
+SERVER_PORT = 8080
 BUFFER_SIZE = 1024
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((TCP_IP, TCP_PORT))
-num_cliente = s.recv(BUFFER_SIZE)
-tamanio = int(s.recv(BUFFER_SIZE))
-hashsito = hashlib.sha256()
-#restante = tamanio%BUFFER_SIZE
-hash_recibido = s.recv(BUFFER_SIZE)
-contador = 0
-with open('received_file' + str(num_cliente), 'wb') as f:
-    print ('file opened')
-    while True:
-        #print('receiving data...')
-        data = s.recv(BUFFER_SIZE)
-        if contador == math.ceil((tamanio/BUFFER_SIZE)):
-            #ultimafila = s.recv(restante)
-            #f.write(ultimafila)
-            #hashsito.update(ultimafila)
-            #hash_final = s.recv(BUFFER_SIZE)
-            #print("Hashfinal :" + str(hash_final))
-            hash_calculado = hashsito.hexdigest()
-            f.close()
-            print('file close()')
-            break
-        hashsito.update(data)
-        f.write(data)
-        contador += 1
-    print("Hash recibido : " + str(hash_recibido) + " y Hash calculado: " + str(hash_calculado))
-    print(contador)
-    if hash_recibido == hash_calculado:
-        print("A momir")
+CLIENTS = 10
 
-        
-print('Successfully get the file')
-s.close()
-print('connection closed')
+class SocketThread(Thread):
+
+    def run(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((SERVER_IP, SERVER_PORT))
+        number = int.from_bytes(s.recv(1), "big")
+        size = int.from_bytes(s.recv(4), "big")
+        hash = s.recv(64).decode()
+        with open("file" + str(number), "wb") as f:
+            hashBuffer = hashlib.sha256()
+            for b in range(size):
+                l = s.recv(BUFFER_SIZE)
+                f.write(l)
+                hashBuffer.update(l)
+        hashCalculado = hashBuffer.hexdigest()
+        s.close()
+        print("Cliente", number, "-", "Hash correcto:", hash == hashCalculado)
+
+clients = []
+
+for c in range(CLIENTS):
+    client = SocketThread()
+    client.start()
+    clients.append(client)
+
+for c in clients:
+    c.join()
