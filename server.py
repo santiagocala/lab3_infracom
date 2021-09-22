@@ -25,7 +25,7 @@ class SocketThread(Thread):
     def run(self):
         self.socket.send(self.number.to_bytes(1, "big"))
         self.socket.send(FILE_SIZE.to_bytes(4, "big"))
-        self.socket.send(hash.encode())
+        self.socket.send(hash)
         with open(FILE, "rb") as f:
             for b in range(FILE_SIZE):
                 self.socket.send(f.read(BUFFER_SIZE))
@@ -40,8 +40,7 @@ with open(FILE, "rb") as f:
     hashBuffer = hashlib.sha256()
     for b in range(FILE_SIZE):
         hashBuffer.update(f.read(BUFFER_SIZE))
-hash = hashBuffer.hexdigest()
-print("Hash:", hash)
+hash = hashBuffer.digest()
 
 for c in range(CLIENTS):
     tcp.listen(0)

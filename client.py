@@ -16,7 +16,7 @@ class SocketThread(Thread):
         s.connect((SERVER_IP, SERVER_PORT))
         number = int.from_bytes(s.recv(1), "big")
         size = int.from_bytes(s.recv(4), "big")
-        hash = s.recv(64).decode()
+        hash = s.recv(32).hex()
         with open("file" + str(number), "wb") as f:
             hashBuffer = hashlib.sha256()
             for b in range(size):
