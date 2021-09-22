@@ -1,5 +1,6 @@
 import socket
 import hashlib
+import math
 
 TCP_IP = 'localhost'
 TCP_PORT = 9001
@@ -10,28 +11,30 @@ s.connect((TCP_IP, TCP_PORT))
 num_cliente = s.recv(BUFFER_SIZE)
 tamanio = int(s.recv(BUFFER_SIZE))
 hashsito = hashlib.sha256()
-anterior = None
-hash_final = None
+#restante = tamanio%BUFFER_SIZE
+hash_recibido = s.recv(BUFFER_SIZE)
 contador = 0
-hash_solicitado = None
-with open('received_file' + str(num_cliente) + ".JPG", 'wb') as f:
+with open('received_file' + str(num_cliente), 'wb') as f:
     print ('file opened')
     while True:
         #print('receiving data...')
         data = s.recv(BUFFER_SIZE)
-        if contador == round(tamanio/BUFFER_SIZE):
-            hash_final = s.recv(BUFFER_SIZE).decode()
-            print("Hashfinal :" + hash_final)
-            hash_solicitado = hashsito.hexdigest()
+        if contador == math.ceil((tamanio/BUFFER_SIZE)):
+            #ultimafila = s.recv(restante)
+            #f.write(ultimafila)
+            #hashsito.update(ultimafila)
+            #hash_final = s.recv(BUFFER_SIZE)
+            #print("Hashfinal :" + str(hash_final))
+            hash_calculado = hashsito.hexdigest()
             f.close()
             print('file close()')
             break
-        anterior = data
         hashsito.update(data)
         f.write(data)
         contador += 1
-    print("Hash final: " + str(hash_final) + " y Hash calculado: " + str(hash_solicitado))
-    if hash_final == hash_solicitado:
+    print("Hash recibido : " + str(hash_recibido) + " y Hash calculado: " + str(hash_calculado))
+    print(contador)
+    if hash_recibido == hash_calculado:
         print("A momir")
 
         

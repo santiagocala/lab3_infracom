@@ -25,31 +25,47 @@ class ClientThread(Thread):
         print(" New thread started for "+ip+":"+str(port))
 
     def run(self):
+        contador = 1
         self.sock.send(str(self.num_cliente).encode())
-        filename='IMG_5456 copy.JPG'
-        hashsito = hashlib.sha256()
+        filename='archivo100.txt'
         f = open(filename,'rb')
         self.sock.send(str(os.path.getsize(filename)).encode())
+        self.sock.send(str(hash_final).encode())
         while True:
             l = f.read(BUFFER_SIZE)
             while (l):
-                hashsito.update(l)
                 self.sock.send(l)
                 #print('Sent ',repr(l))
                 l = f.read(BUFFER_SIZE)
+                contador += 1
             if not l:
                 f.close()
                 # resultado = hashsito.hexdigest()
                 # print(resultado)
-                self.sock.send(hashsito.hexdigest().encode())
+                #self.sock.send(hashsito.hexdigest())
                 #print(hashsito.hexdigest())
                 self.sock.close()
+                print(contador)
                 break
-
+                
 tcpsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 tcpsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 tcpsock.bind((TCP_IP, TCP_PORT))
 threads = []
+
+archivo = 'archivo100.txt'
+with open(archivo,'rb') as f:
+    hashsito = hashlib.sha256()
+    while True:
+        l = f.read(BUFFER_SIZE)
+        while (l):
+            hashsito.update(l)
+            #print('Sent ',repr(l))
+            l = f.read(BUFFER_SIZE)
+            if not l:
+                f.close()
+                break
+    hash_final = hashsito.hexdigest()
 
 while True:
     tcpsock.listen(5)
