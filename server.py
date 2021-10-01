@@ -15,8 +15,8 @@ from scapy.all import rdpcap, TCP
 CLIENTS = int(argv[1])
 FILE_NAME = str(argv[2])
 
-INTERFACE = "lo0"
-SERVER_IP = "localhost"
+INTERFACE = "enp0s3"
+SERVER_IP = "192.168.1.155"
 SERVER_PORT = 9090
 BUFFER_SIZE = 1024
 FILE_SIZE = getsize(FILE_NAME)

@@ -14,8 +14,8 @@ from scapy.all import rdpcap, TCP
 
 CLIENTS = int(argv[1])
 
-INTERFACE = "lo0"
-SERVER_IP = "localhost"
+INTERFACE = "en0"
+SERVER_IP = "192.168.1.155"
 SERVER_PORT = 9090
 BUFFER_SIZE = 1024
 
@@ -47,7 +47,6 @@ clients = []
 
 for c in range(CLIENTS):
     clientSocket = socket(AF_INET, SOCK_STREAM)
-    print(clientSocket.if_nameindex())
     clientSocket.connect((SERVER_IP, SERVER_PORT))
     clientPort = clientSocket.getsockname()[1]
     log[clientPort] = {}
