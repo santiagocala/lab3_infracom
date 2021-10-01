@@ -1,21 +1,26 @@
-import socket
-import hashlib
-import os
-import math
-import time
-import scapy
+from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+from subprocess import Popen, DEVNULL
 from threading import Thread
+from datetime import datetime
+from math import ceil
+from os import remove, mkdir
+from os.path import getsize, exists
+from sys import argv
+from hashlib import sha256
+from time import time, sleep
+from logging import getLogger, CRITICAL
+getLogger("scapy").setLevel(CRITICAL) # Hide Scapy warnings
+from scapy.all import rdpcap, TCP
 
-### Configuration ###
-CLIENTS = 10
-FILE_NAME = "100.txt"
-#####################
+CLIENTS = int(argv[1])
+FILE_NAME = str(argv[2])
 
+INTERFACE = "lo0"
 SERVER_IP = "localhost"
-SERVER_PORT = 8080
+SERVER_PORT = 9090
 BUFFER_SIZE = 1024
-FILE_SIZE = os.path.getsize(FILE_NAME)
-ITERATIONS = int(math.ceil(FILE_SIZE/BUFFER_SIZE))
+FILE_SIZE = getsize(FILE_NAME)
+ITERATIONS = int(ceil(FILE_SIZE / BUFFER_SIZE))
 
 log = {}
 
@@ -28,31 +33,31 @@ class SocketThread(Thread):
 
     def run(self):
         with open(FILE_NAME, "rb") as f:
-            initialTime = time.time()
+            initialTime = time()
             for i in range(ITERATIONS):
                 self.socket.send(f.read(BUFFER_SIZE))
             self.socket.recv(1) # Received last package
-            log[self.port]["time"] = int(time.time() - initialTime)
-        log[self.port]["success"] = bool.from_bytes(self.socket.recv(1), "big") 
-
-tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-tcp.bind((SERVER_IP, SERVER_PORT))
-clients = []
+            log[self.port]["time"] = int(time() - initialTime)
+            log[self.port]["success"] = bool.from_bytes(self.socket.recv(1), "big") 
 
 with open(FILE_NAME, "rb") as f:
-    hashBuffer = hashlib.sha256()
+    hashBuffer = sha256()
     for i in range(ITERATIONS):
         hashBuffer.update(f.read(BUFFER_SIZE))
-hash = hashBuffer.digest()
+    hash = hashBuffer.digest()
+
+tcpSocket = socket(AF_INET, SOCK_STREAM)
+tcpSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+tcpSocket.bind((SERVER_IP, SERVER_PORT))
+clients = []
 
 for c in range(CLIENTS):
-    tcp.listen(0)
-    (clientSocket, (clientIp, clientPort)) = tcp.accept()
+    tcpSocket.listen(0)
+    (clientSocket, (clientIp, clientPort)) = tcpSocket.accept()
     log[clientPort] = {}
     log[clientPort]["number"] = c + 1
     log[clientPort]["packets"] = 0
-    log[clientPort]["bytes"] = 0
+    log[clientPort]["data"] = 0
     clientSocket.send(log[clientPort]["number"].to_bytes(1, "big"))
     clientSocket.send(FILE_NAME.encode())
     clientSocket.send(FILE_SIZE.to_bytes(4, "big"))
@@ -61,22 +66,30 @@ for c in range(CLIENTS):
     clients.append(client)
     clientSocket.recv(1) # Ready to receive
 
-sniffer = scapy.AsyncSniffer("scr port " + str(SERVER_PORT))
-sniffer.start()
+sniffer = Popen(["tcpdump", "-i", INTERFACE, "-w", "serverOut.pcap",  "host {} and tcp src port {}".format(SERVER_IP, SERVER_PORT)], stderr = DEVNULL)
+sleep(5) # Give time to initialize sniffing
 
 for c in clients:
     c.start()
 
-sniffer.stop
-
 for c in clients:
     c.join()
 
-for packet in sniffer:
-    clientPort = packet["TCP"].dport
-    log[clientPort]["packets"] = log[clientPort]["packets"] + 1
-    log[clientPort]["bytes"] = log[clientPort]["bytes"] + len(packet)
+sleep(30) # Give time to finish dumping the sniff
+sniffer.terminate()
 
-# Create log
-#Recorrer clientes
-c.socket.close()
+for packet in rdpcap("serverOut.pcap"):
+    clientPort = packet[TCP].dport
+    log[clientPort]["packets"] = log[clientPort]["packets"] + 1
+    log[clientPort]["data"] = log[clientPort]["data"] + len(packet)
+remove("serverOut.pcap")
+
+if not exists("Logs"): mkdir("Logs")
+with open("Logs/" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + "-Server-log.txt", "w") as f:
+    f.write("Archivo: {}, Tamaño(MB): {}\n".format(FILE_NAME, FILE_SIZE / 10**6))
+    for l in log:
+        clients[log[l]["number"] - 1].socket.close()
+        log[l]["data"] = log[l]["data"] / 10**6
+        rate = log[l]["data"]
+        if log[l]["time"] != 0: rate = log[l]["data"] / (log[l]["time"])
+        f.write("\nCliente: {}, Puerto: {}, Exitoso: {}, PaquetesEnviados: {}, DatosEnviados(MB): {}, Tiempo(s): {}, Velocidad(MBps): {}".format(log[l]["number"], l, log[l]["success"], log[l]["packets"], log[l]["data"], log[l]["time"], rate))
