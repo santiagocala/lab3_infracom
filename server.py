@@ -1,4 +1,4 @@
-from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, MSG_WAITALL
 from subprocess import Popen, DEVNULL
 from threading import Thread
 from datetime import datetime
@@ -35,10 +35,10 @@ class SocketThread(Thread):
         with open(FILE_NAME, "rb") as f:
             initialTime = time()
             for i in range(ITERATIONS):
-                self.socket.send(f.read(BUFFER_SIZE))
-            self.socket.recv(1) # Received last package
+                self.socket.sendall(f.read(BUFFER_SIZE), MSG_WAITALL)
+            self.socket.recv(1, MSG_WAITALL) # Received last package
             log[self.port]["time"] = int(time() - initialTime)
-            log[self.port]["success"] = bool.from_bytes(self.socket.recv(1), "big") 
+            log[self.port]["success"] = bool.from_bytes(self.socket.recv(1, MSG_WAITALL), "big") 
 
 with open(FILE_NAME, "rb") as f:
     hashBuffer = sha256()
@@ -52,19 +52,19 @@ tcpSocket.bind((SERVER_IP, SERVER_PORT))
 clients = []
 
 for c in range(CLIENTS):
-    tcpSocket.listen(0)
+    tcpSocket.listen(CLIENTS)
     (clientSocket, (clientIp, clientPort)) = tcpSocket.accept()
     log[clientPort] = {}
     log[clientPort]["number"] = c + 1
     log[clientPort]["packets"] = 0
     log[clientPort]["data"] = 0
-    clientSocket.send(log[clientPort]["number"].to_bytes(1, "big"))
-    clientSocket.send(FILE_NAME.encode())
-    clientSocket.send(FILE_SIZE.to_bytes(4, "big"))
-    clientSocket.send(hash)
+    clientSocket.sendall(log[clientPort]["number"].to_bytes(1, "big"), MSG_WAITALL)
+    clientSocket.sendall(FILE_NAME.encode(), MSG_WAITALL)
+    clientSocket.sendall(FILE_SIZE.to_bytes(4, "big"), MSG_WAITALL)
+    clientSocket.sendall(hash, MSG_WAITALL)
     client = SocketThread(clientSocket, clientPort)
     clients.append(client)
-    clientSocket.recv(1) # Ready to receive
+    clientSocket.recv(1, MSG_WAITALL) # Ready to receive
 
 sniffer = Popen(["tcpdump", "-i", INTERFACE, "-w", "serverOut.pcap",  "host {} and tcp src port {}".format(SERVER_IP, SERVER_PORT)], stderr = DEVNULL)
 sleep(5) # Give time to initialize sniffing
@@ -75,7 +75,7 @@ for c in clients:
 for c in clients:
     c.join()
 
-sleep(30) # Give time to finish dumping the sniff
+sleep(5) # Give time to finish dumping the sniff
 sniffer.terminate()
 
 for packet in rdpcap("serverOut.pcap"):
