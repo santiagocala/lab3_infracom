@@ -10,7 +10,7 @@ from hashlib import sha256
 from time import time, sleep
 from logging import getLogger, CRITICAL
 getLogger("scapy").setLevel(CRITICAL) # Hide Scapy warnings
-from scapy.all import rdpcap, TCP
+from scapy.all import PcapReader, conf, IP, TCP
 
 CLIENTS = int(argv[1])
 
@@ -61,7 +61,7 @@ for c in range(CLIENTS):
     clientSocket.sendall(True.to_bytes(1, "big"), MSG_WAITALL) # Ready to receive
     print("Cliente {} listo para recibir".format(log[clientPort]["number"]))
 
-sniffer = Popen(["tcpdump", "-i", INTERFACE, "-w", "clientsOut.pcap",  "host {} and tcp src port {}".format(SERVER_IP, SERVER_PORT)], stderr = DEVNULL)
+sniffer = Popen(["tcpdump", "-i", INTERFACE, "-s", "66", "-w", "clientsOut.pcap",  "host {} and tcp src port {}".format(SERVER_IP, SERVER_PORT)], stderr = DEVNULL)
 sleep(5) # Give time to initialize sniffing
 
 iterations = int(ceil(fileSize / BUFFER_SIZE))
@@ -74,10 +74,11 @@ for c in clients:
 sleep(5) # Give time to finish dumping the sniff
 sniffer.terminate()
 
-for packet in rdpcap("clientsOut.pcap"):
+conf.layers.filter([IP, TCP])
+for packet in PcapReader("clientsOut.pcap"):
     clientPort = packet[TCP].dport
     log[clientPort]["packets"] = log[clientPort]["packets"] + 1
-    log[clientPort]["data"] = log[clientPort]["data"] + len(packet)
+    log[clientPort]["data"] = log[clientPort]["data"] + packet[IP].len + 14
 remove("clientsOut.pcap")
 
 if not exists("Logs"): mkdir("Logs")
