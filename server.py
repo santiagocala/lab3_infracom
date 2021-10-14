@@ -1,4 +1,4 @@
-from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, MSG_WAITALL
+from socket import socket, timeout, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, MSG_WAITALL, SOCK_DGRAM
 from subprocess import Popen, DEVNULL
 from threading import Thread
 from datetime import datetime
@@ -10,7 +10,7 @@ from hashlib import sha256
 from time import time, sleep
 from logging import getLogger, CRITICAL
 getLogger("scapy").setLevel(CRITICAL) # Hide Scapy warnings
-from scapy.all import PcapReader, conf, IP, TCP
+from scapy.all import PcapReader, conf, IP, UDP
 
 CLIENTS = int(argv[1])
 FILE_NAME = str(argv[2])
@@ -21,21 +21,28 @@ SERVER_PORT = 9090
 BUFFER_SIZE = 1024
 FILE_SIZE = getsize(FILE_NAME)
 ITERATIONS = int(ceil(FILE_SIZE / BUFFER_SIZE))
+TIMEOUT = 0.00019222086
 
 log = {}
 
 class SocketThread(Thread):
 
-    def __init__(self, socket, port):
+    def __init__(self, socket, address, port):
         Thread.__init__(self)
         self.socket = socket
+        self.address = address
         self.port = port
 
     def run(self):
+        udpSocket = socket(AF_INET, SOCK_DGRAM)
+        udpSocket.settimeout(TIMEOUT)
+        udpSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        udpSocket.bind((SERVER_IP, SERVER_PORT))
         with open(FILE_NAME, "rb") as f:
             initialTime = time()
             for i in range(ITERATIONS):
-                self.socket.sendall(f.read(BUFFER_SIZE), MSG_WAITALL)
+                try: udpSocket.sendto(f.read(BUFFER_SIZE), self.address)
+                except timeout: pass
             self.socket.recv(1, MSG_WAITALL) # Received last package
             log[self.port]["time"] = int(time() - initialTime)
             log[self.port]["success"] = bool.from_bytes(self.socket.recv(1, MSG_WAITALL), "big") 
@@ -53,7 +60,8 @@ clients = []
 
 for c in range(CLIENTS):
     tcpSocket.listen(CLIENTS)
-    (clientSocket, (clientIp, clientPort)) = tcpSocket.accept()
+    (clientSocket, clientAddress) = tcpSocket.accept()
+    clientPort = clientAddress[1]
     log[clientPort] = {}
     log[clientPort]["number"] = c + 1
     log[clientPort]["packets"] = 0
@@ -62,11 +70,11 @@ for c in range(CLIENTS):
     clientSocket.sendall(FILE_NAME.encode(), MSG_WAITALL)
     clientSocket.sendall(FILE_SIZE.to_bytes(4, "big"), MSG_WAITALL)
     clientSocket.sendall(hash, MSG_WAITALL)
-    client = SocketThread(clientSocket, clientPort)
+    client = SocketThread(clientSocket, clientAddress, clientPort)
     clients.append(client)
     clientSocket.recv(1, MSG_WAITALL) # Ready to receive
 
-sniffer = Popen(["tcpdump", "-i", INTERFACE, "-s", "66", "-w", "serverOut.pcap",  "host {} and tcp src port {}".format(SERVER_IP, SERVER_PORT)], stderr = DEVNULL)
+sniffer = Popen(["tcpdump", "-i", INTERFACE, "-s", "42", "-w", "serverOut.pcap",  "src host {} and udp src port {}".format(SERVER_IP, SERVER_PORT)], stderr = DEVNULL)
 sleep(5) # Give time to initialize sniffing
 
 for c in clients:
@@ -78,9 +86,9 @@ for c in clients:
 sleep(5) # Give time to finish dumping the sniff
 sniffer.terminate()
 
-conf.layers.filter([IP, TCP])
+conf.layers.filter([IP, UDP])
 for packet in PcapReader("serverOut.pcap"):
-    clientPort = packet[TCP].dport
+    clientPort = packet[UDP].dport
     log[clientPort]["packets"] = log[clientPort]["packets"] + 1
     log[clientPort]["data"] = log[clientPort]["data"] + packet[IP].len + 14
 remove("serverOut.pcap")
