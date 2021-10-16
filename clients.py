@@ -6,7 +6,6 @@ from math import ceil
 from os import remove, mkdir
 from os.path import exists
 from sys import argv
-from hashlib import sha256
 from time import time, sleep
 from logging import getLogger, CRITICAL
 getLogger("scapy").setLevel(CRITICAL) # Hide Scapy warnings
@@ -18,37 +17,32 @@ INTERFACE = "en0"
 SERVER_IP = "192.168.1.155"
 SERVER_PORT = 9090
 BUFFER_SIZE = 1024
-TIMEOUT = 0.00019222086
+TIMEOUT = 0.00019427887
 
 log = {}
 if not exists("ArchivosRecibidos"): mkdir("ArchivosRecibidos")
 
 class SocketThread(Thread):
 
-    def __init__(self, socket, address, port, hash):
+    def __init__(self, socket, address, port):
         Thread.__init__(self)
         self.socket = socket
         self.address = address
         self.port = port
-        self.hash = hash
 
     def run(self):
         udpSocket = socket(AF_INET, SOCK_DGRAM)
-        #udpSocket.settimeout(TIMEOUT)
+        udpSocket.settimeout(TIMEOUT)
         udpSocket.bind(self.address)
-        hashBuffer = sha256()
         with open("ArchivosRecibidos/Cliente" + str(log[self.port]["number"]) + "-Prueba-" + str(CLIENTS), "wb") as f:
             initialTime = time()
             for i in range(iterations):
                 try:
-                    data = udpSocket.recv(BUFFER_SIZE)
-                    f.write(data)
-                    hashBuffer.update(data)
+                    f.write(udpSocket.recv(BUFFER_SIZE))
                 except timeout: pass
             self.socket.sendall(True.to_bytes(1, "big"), MSG_WAITALL) # Received last package
             log[self.port]["time"] = int(time() - initialTime)
-            log[self.port]["success"] = (hash == hashBuffer.hexdigest())
-            self.socket.sendall(log[self.port]["success"].to_bytes(1, "big"), MSG_WAITALL)
+            log[self.port]["success"] = True
 
 clients = []
 
@@ -61,10 +55,9 @@ for c in range(CLIENTS):
     log[clientPort]["number"] = int.from_bytes(clientSocket.recv(1, MSG_WAITALL), "big")
     fileName = clientSocket.recv(7, MSG_WAITALL).decode()
     fileSize = int.from_bytes(clientSocket.recv(4, MSG_WAITALL), "big")
-    hash = clientSocket.recv(32, MSG_WAITALL).hex()
     log[clientPort]["packets"] = 0
     log[clientPort]["data"] = 0
-    client = SocketThread(clientSocket, clientAddress, clientPort, hash)
+    client = SocketThread(clientSocket, clientAddress, clientPort)
     clients.append(client)
     clientSocket.sendall(True.to_bytes(1, "big"), MSG_WAITALL) # Ready to receive
     print("Cliente {} listo para recibir".format(log[clientPort]["number"]))

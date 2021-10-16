@@ -6,7 +6,6 @@ from math import ceil
 from os import remove, mkdir
 from os.path import getsize, exists
 from sys import argv
-from hashlib import sha256
 from time import time, sleep
 from logging import getLogger, CRITICAL
 getLogger("scapy").setLevel(CRITICAL) # Hide Scapy warnings
@@ -21,7 +20,7 @@ SERVER_PORT = 9090
 BUFFER_SIZE = 1024
 FILE_SIZE = getsize(FILE_NAME)
 ITERATIONS = int(ceil(FILE_SIZE / BUFFER_SIZE))
-TIMEOUT = 0.00019222086
+TIMEOUT = 0.00019427887
 
 log = {}
 
@@ -43,15 +42,8 @@ class SocketThread(Thread):
             for i in range(ITERATIONS):
                 try: udpSocket.sendto(f.read(BUFFER_SIZE), self.address)
                 except timeout: pass
-            self.socket.recv(1, MSG_WAITALL) # Received last package
+            log[self.port]["success"] = bool.from_bytes(self.socket.recv(1, MSG_WAITALL), "big") # Received last package
             log[self.port]["time"] = int(time() - initialTime)
-            log[self.port]["success"] = bool.from_bytes(self.socket.recv(1, MSG_WAITALL), "big") 
-
-with open(FILE_NAME, "rb") as f:
-    hashBuffer = sha256()
-    for i in range(ITERATIONS):
-        hashBuffer.update(f.read(BUFFER_SIZE))
-    hash = hashBuffer.digest()
 
 tcpSocket = socket(AF_INET, SOCK_STREAM)
 tcpSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
@@ -69,7 +61,6 @@ for c in range(CLIENTS):
     clientSocket.sendall(log[clientPort]["number"].to_bytes(1, "big"), MSG_WAITALL)
     clientSocket.sendall(FILE_NAME.encode(), MSG_WAITALL)
     clientSocket.sendall(FILE_SIZE.to_bytes(4, "big"), MSG_WAITALL)
-    clientSocket.sendall(hash, MSG_WAITALL)
     client = SocketThread(clientSocket, clientAddress, clientPort)
     clients.append(client)
     clientSocket.recv(1, MSG_WAITALL) # Ready to receive
