@@ -39,7 +39,7 @@ class SocketThread(Thread):
             for i in range(iterations):
                 try: f.write(udpSocket.recv(BUFFER_SIZE))
                 except timeout: pass
-            self.socket.sendall(True.to_bytes(1, "big"), MSG_WAITALL) # Received last package
+            self.socket.sendall(True.to_bytes(1, "big"), MSG_WAITALL) # Finished transmission
             log[self.port]["time"] = int(time() - initialTime)
             log[self.port]["success"] = True
         udpSocket.close()
