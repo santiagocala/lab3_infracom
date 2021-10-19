@@ -37,12 +37,12 @@ class SocketThread(Thread):
         with open("ArchivosRecibidos/Cliente" + str(log[self.port]["number"]) + "-Prueba-" + str(CLIENTS), "wb") as f:
             initialTime = time()
             for i in range(iterations):
-                try:
-                    f.write(udpSocket.recv(BUFFER_SIZE))
+                try: f.write(udpSocket.recv(BUFFER_SIZE))
                 except timeout: pass
             self.socket.sendall(True.to_bytes(1, "big"), MSG_WAITALL) # Received last package
             log[self.port]["time"] = int(time() - initialTime)
             log[self.port]["success"] = True
+        udpSocket.close()
 
 clients = []
 

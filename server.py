@@ -44,6 +44,7 @@ class SocketThread(Thread):
                 except timeout: pass
             log[self.port]["success"] = bool.from_bytes(self.socket.recv(1, MSG_WAITALL), "big") # Received last package
             log[self.port]["time"] = int(time() - initialTime)
+        udpSocket.close()
 
 tcpSocket = socket(AF_INET, SOCK_STREAM)
 tcpSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
